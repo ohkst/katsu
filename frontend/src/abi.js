@@ -7,9 +7,9 @@ export const abi = [
     {
         "inputs": [
             {
-                "internalType": "uint256",
-                "name": "_number",
-                "type": "uint256"
+                "internalType": "uint8[6]",
+                "name": "_numbers",
+                "type": "uint8[6]"
             }
         ],
         "name": "enter",
@@ -42,14 +42,27 @@ export const abi = [
                         "type": "address"
                     },
                     {
-                        "internalType": "uint256",
-                        "name": "number",
-                        "type": "uint256"
+                        "internalType": "uint8[6]",
+                        "name": "numbers",
+                        "type": "uint8[6]"
                     }
                 ],
                 "internalType": "struct Lottery.Ticket[]",
                 "name": "",
                 "type": "tuple[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "lastMatchCount",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
             }
         ],
         "stateMutability": "view",
@@ -69,13 +82,19 @@ export const abi = [
         "type": "function"
     },
     {
-        "inputs": [],
-        "name": "lastWinningNumber",
-        "outputs": [
+        "inputs": [
             {
                 "internalType": "uint256",
                 "name": "",
                 "type": "uint256"
+            }
+        ],
+        "name": "lastWinningNumbers",
+        "outputs": [
+            {
+                "internalType": "uint8",
+                "name": "",
+                "type": "uint8"
             }
         ],
         "stateMutability": "view",
@@ -115,11 +134,6 @@ export const abi = [
                 "internalType": "address",
                 "name": "player",
                 "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "number",
-                "type": "uint256"
             }
         ],
         "stateMutability": "view",

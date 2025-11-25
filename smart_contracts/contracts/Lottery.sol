@@ -4,60 +4,90 @@ pragma solidity ^0.8.19;
 contract Lottery {
     struct Ticket {
         address player;
-        uint number;
+        uint8[6] numbers; // 6 numbers between 1-45
     }
 
     address public manager;
     Ticket[] public tickets;
     address public lastWinner;
-    uint public lastWinningNumber;
+    uint8[6] public lastWinningNumbers;
+    uint public lastMatchCount;
 
     constructor() {
         manager = msg.sender;
     }
 
-    function enter(uint _number) public payable {
+    function enter(uint8[6] memory _numbers) public payable {
         require(msg.value == .003 ether, "Must send exactly 0.003 ETH");
-        require(_number >= 0 && _number <= 999, "Number must be between 0 and 999");
+        
+        // Validate numbers are in range 1-45 and unique
+        for (uint i = 0; i < 6; i++) {
+            require(_numbers[i] >= 1 && _numbers[i] <= 45, "Numbers must be between 1 and 45");
+            for (uint j = i + 1; j < 6; j++) {
+                require(_numbers[i] != _numbers[j], "Numbers must be unique");
+            }
+        }
+        
         tickets.push(Ticket({
             player: msg.sender,
-            number: _number
+            numbers: _numbers
         }));
     }
 
     function random() private view returns (uint) {
-        // Pseudo-random number generator (Not secure for production with high stakes)
         return uint(keccak256(abi.encodePacked(block.prevrandao, block.timestamp, tickets.length)));
     }
 
     function pickWinner() public restricted {
         require(tickets.length > 0, "No players in the lottery");
         
-        uint winningNumber = random() % 1000; // 0-999
-        lastWinningNumber = winningNumber;
+        // Generate 6 random winning numbers (1-45)
+        uint8[6] memory winningNumbers;
+        bool[46] memory used; // Track used numbers (index 0 unused, 1-45 used)
         
-        // Find closest match
+        for (uint i = 0; i < 6; i++) {
+            uint8 num;
+            do {
+                num = uint8((random() + i) % 45) + 1; // 1-45
+            } while (used[num]);
+            used[num] = true;
+            winningNumbers[i] = num;
+        }
+        
+        lastWinningNumbers = winningNumbers;
+        
+        // Find ticket with most matches
         address winner = tickets[0].player;
-        uint minDiff = abs(int(tickets[0].number) - int(winningNumber));
+        uint maxMatches = countMatches(tickets[0].numbers, winningNumbers);
         
         for (uint i = 1; i < tickets.length; i++) {
-            uint diff = abs(int(tickets[i].number) - int(winningNumber));
-            if (diff < minDiff) {
-                minDiff = diff;
+            uint matches = countMatches(tickets[i].numbers, winningNumbers);
+            if (matches > maxMatches) {
+                maxMatches = matches;
                 winner = tickets[i].player;
             }
         }
         
         lastWinner = winner;
+        lastMatchCount = maxMatches;
         
         (bool success, ) = winner.call{value: address(this).balance}("");
         require(success, "Transfer failed");
         
-        delete tickets; // Reset the lottery
+        delete tickets;
     }
 
-    function abs(int x) private pure returns (uint) {
-        return x >= 0 ? uint(x) : uint(-x);
+    function countMatches(uint8[6] memory numbers1, uint8[6] memory numbers2) private pure returns (uint) {
+        uint matches = 0;
+        for (uint i = 0; i < 6; i++) {
+            for (uint j = 0; j < 6; j++) {
+                if (numbers1[i] == numbers2[j]) {
+                    matches++;
+                    break;
+                }
+            }
+        }
+        return matches;
     }
 
     function getTickets() public view returns (Ticket[] memory) {

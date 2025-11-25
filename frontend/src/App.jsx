@@ -8,12 +8,13 @@ function App() {
     const [tickets, setTickets] = useState([]);
     const [balance, setBalance] = useState('');
     const [lastWinner, setLastWinner] = useState('');
-    const [lastWinningNumber, setLastWinningNumber] = useState('');
+    const [lastWinningNumbers, setLastWinningNumbers] = useState([]);
+    const [lastMatchCount, setLastMatchCount] = useState(0);
     const [currentAccount, setCurrentAccount] = useState('');
     const [message, setMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isMockMode, setIsMockMode] = useState(false);
-    const [lotteryNumber, setLotteryNumber] = useState('');
+    const [lotteryNumbers, setLotteryNumbers] = useState(['', '', '', '', '', '']);
     const [myTickets, setMyTickets] = useState([]);
 
     useEffect(() => {
@@ -23,11 +24,10 @@ function App() {
                 if (!contract) {
                     console.log("Contract not found, enabling Mock Mode");
                     setIsMockMode(true);
-                    // Mock Data
                     setManager('0x1234...abcd');
                     setTickets([
-                        { player: '0xUser1...', number: 123 },
-                        { player: '0xUser2...', number: 456 }
+                        { player: '0xUser1...', numbers: [3, 7, 15, 23, 31, 42] },
+                        { player: '0xUser2...', numbers: [1, 5, 10, 20, 30, 40] }
                     ]);
                     setBalance('0.006');
                     return;
@@ -42,16 +42,17 @@ function App() {
                 const managerAddress = await contract.manager();
                 const ticketsList = await contract.getTickets();
                 const lastWinnerAddress = await contract.lastWinner();
-                const winningNum = await contract.lastWinningNumber();
+                const winningNums = await contract.lastWinningNumbers();
+                const matchCount = await contract.lastMatchCount();
                 const balanceWei = await provider.getBalance(await contract.getAddress());
 
                 setManager(managerAddress);
                 setTickets(ticketsList);
                 setLastWinner(lastWinnerAddress);
-                setLastWinningNumber(winningNum.toString());
+                setLastWinningNumbers(winningNums.map(n => n.toString()));
+                setLastMatchCount(matchCount.toString());
                 setBalance(ethers.formatEther(balanceWei));
 
-                // Filter my tickets
                 if (accounts.length > 0) {
                     const userTickets = ticketsList.filter(t =>
                         t.player.toLowerCase() === accounts[0].address.toLowerCase()
@@ -95,12 +96,40 @@ function App() {
         }
     };
 
-    const onEnter = async () => {
-        const num = parseInt(lotteryNumber);
-        if (isNaN(num) || num < 0 || num > 999) {
-            alert("0부터 999 사이의 숫자를 입력해주세요!");
-            return;
+    const handleNumberChange = (index, value) => {
+        const newNumbers = [...lotteryNumbers];
+        newNumbers[index] = value;
+        setLotteryNumbers(newNumbers);
+    };
+
+    const validateNumbers = () => {
+        const nums = lotteryNumbers.map(n => parseInt(n)).filter(n => !isNaN(n));
+
+        if (nums.length !== 6) {
+            alert("6개의 번호를 모두 입력해주세요!");
+            return false;
         }
+
+        for (let num of nums) {
+            if (num < 1 || num > 45) {
+                alert("번호는 1부터 45 사이여야 합니다!");
+                return false;
+            }
+        }
+
+        const uniqueNums = new Set(nums);
+        if (uniqueNums.size !== 6) {
+            alert("중복되지 않은 6개의 번호를 입력해주세요!");
+            return false;
+        }
+
+        return true;
+    };
+
+    const onEnter = async () => {
+        if (!validateNumbers()) return;
+
+        const nums = lotteryNumbers.map(n => parseInt(n));
 
         try {
             setMessage('트랜잭션 처리 중입니다...');
@@ -108,24 +137,23 @@ function App() {
 
             if (isMockMode) {
                 await new Promise(resolve => setTimeout(resolve, 2000));
-                const newTicket = { player: currentAccount || "0xMockUser", number: num };
-                setMessage(`복권 참여가 완료되었습니다! (번호: ${num}, 테스트 모드)`);
+                const newTicket = { player: currentAccount || "0xMockUser", numbers: nums };
+                setMessage(`복권 참여가 완료되었습니다! (번호: ${nums.join(', ')}, 테스트 모드)`);
                 setTickets([...tickets, newTicket]);
                 setMyTickets([...myTickets, newTicket]);
                 setBalance((parseFloat(balance || 0) + 0.003).toFixed(3));
-                setLotteryNumber('');
+                setLotteryNumbers(['', '', '', '', '', '']);
                 setIsLoading(false);
                 return;
             }
 
             const contract = await getContract();
-            const tx = await contract.enter(num, {
+            const tx = await contract.enter(nums, {
                 value: ethers.parseEther('0.003')
             });
             await tx.wait();
-            setMessage(`복권 참여가 완료되었습니다! (번호: ${num})`);
+            setMessage(`복권 참여가 완료되었습니다! (번호: ${nums.join(', ')})`);
 
-            // Refresh data
             const ticketsList = await contract.getTickets();
             const provider = getProvider();
             const balanceWei = await provider.getBalance(await contract.getAddress());
@@ -136,7 +164,7 @@ function App() {
                 t.player.toLowerCase() === currentAccount.toLowerCase()
             );
             setMyTickets(userTickets);
-            setLotteryNumber('');
+            setLotteryNumbers(['', '', '', '', '', '']);
         } catch (error) {
             setMessage('트랜잭션 실패!');
             console.error(error);
@@ -152,21 +180,34 @@ function App() {
 
             if (isMockMode) {
                 await new Promise(resolve => setTimeout(resolve, 2000));
-                const winningNum = Math.floor(Math.random() * 1000);
-                let winner = tickets.length > 0 ? tickets[0] : { player: "0xMockWinner", number: 0 };
-                let minDiff = Math.abs(winner.number - winningNum);
+                const winningNums = [];
+                const used = new Set();
+                while (winningNums.length < 6) {
+                    const num = Math.floor(Math.random() * 45) + 1;
+                    if (!used.has(num)) {
+                        used.add(num);
+                        winningNums.push(num);
+                    }
+                }
 
-                for (let i = 1; i < tickets.length; i++) {
-                    const diff = Math.abs(tickets[i].number - winningNum);
-                    if (diff < minDiff) {
-                        minDiff = diff;
-                        winner = tickets[i];
+                let winner = tickets[0];
+                let maxMatches = 0;
+
+                for (let ticket of tickets) {
+                    let matches = 0;
+                    for (let num of ticket.numbers) {
+                        if (winningNums.includes(num)) matches++;
+                    }
+                    if (matches > maxMatches) {
+                        maxMatches = matches;
+                        winner = ticket;
                     }
                 }
 
                 setLastWinner(winner.player);
-                setLastWinningNumber(winningNum.toString());
-                setMessage(`당첨 번호: ${winningNum}, 당첨자: ${winner.player} (예측 번호: ${winner.number}) (테스트 모드)`);
+                setLastWinningNumbers(winningNums);
+                setLastMatchCount(maxMatches);
+                setMessage(`당첨 번호: ${winningNums.join(', ')} | 당첨자: ${winner.player} (${maxMatches}개 일치) (테스트 모드)`);
                 setTickets([]);
                 setMyTickets([]);
                 setBalance('0');
@@ -179,12 +220,13 @@ function App() {
             await tx.wait();
 
             const winner = await contract.lastWinner();
-            const winningNum = await contract.lastWinningNumber();
+            const winningNums = await contract.lastWinningNumbers();
+            const matchCount = await contract.lastMatchCount();
             setLastWinner(winner);
-            setLastWinningNumber(winningNum.toString());
-            setMessage(`당첨 번호: ${winningNum}, 당첨자: ${winner}`);
+            setLastWinningNumbers(winningNums.map(n => n.toString()));
+            setLastMatchCount(matchCount.toString());
+            setMessage(`당첨 번호: ${winningNums.join(', ')} | 당첨자: ${winner} (${matchCount}개 일치)`);
 
-            // Refresh data
             setTickets([]);
             setMyTickets([]);
             setBalance('0');
@@ -197,6 +239,7 @@ function App() {
     };
 
     const totalPrize = tickets.length * 0.003;
+    const allNumbersFilled = lotteryNumbers.every(n => n !== '');
 
     return (
         <div className="container">
@@ -226,21 +269,32 @@ function App() {
             </div>
 
             <div className="card">
-                <h3>행운을 시험해보세요!</h3>
+                <h3>행운의 번호를 선택하세요!</h3>
                 <p>참가비: 0.003 ETH</p>
-                <p style={{ fontSize: '0.9rem', color: '#94a3b8', marginTop: '0.5rem' }}>
-                    0부터 999 사이의 숫자를 예측하세요
+                <p style={{ fontSize: '0.9rem', color: '#94a3b8', marginTop: '0.5rem', marginBottom: '1rem' }}>
+                    1부터 45 사이의 중복되지 않는 6개 번호
                 </p>
-                <input
-                    type="number"
-                    min="0"
-                    max="999"
-                    value={lotteryNumber}
-                    onChange={(e) => setLotteryNumber(e.target.value)}
-                    placeholder="예측 번호 (0-999)"
-                    disabled={isLoading}
-                />
-                <button onClick={onEnter} disabled={isLoading || !lotteryNumber}>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gap: '0.5rem',
+                    marginBottom: '1rem'
+                }}>
+                    {[0, 1, 2, 3, 4, 5].map(i => (
+                        <input
+                            key={i}
+                            type="number"
+                            min="1"
+                            max="45"
+                            value={lotteryNumbers[i]}
+                            onChange={(e) => handleNumberChange(i, e.target.value)}
+                            placeholder={`번호 ${i + 1}`}
+                            disabled={isLoading}
+                            style={{ textAlign: 'center', fontSize: '1.1rem', fontWeight: 'bold' }}
+                        />
+                    ))}
+                </div>
+                <button onClick={onEnter} disabled={isLoading || !allNumbersFilled}>
                     {isLoading ? <span className="loading"></span> : null}
                     {isLoading ? '처리 중...' : '복권 참여하기'}
                 </button>
@@ -256,14 +310,25 @@ function App() {
                                 padding: '0.5rem',
                                 marginBottom: '0.5rem',
                                 borderRadius: '5px',
-                                fontSize: '0.9rem',
-                                display: 'flex',
-                                justifyContent: 'space-between'
+                                fontSize: '0.9rem'
                             }}>
-                                <span>티켓 #{idx + 1}</span>
-                                <span style={{ color: '#10b981', fontWeight: 'bold' }}>
-                                    예측 번호: {ticket.number?.toString ? ticket.number.toString() : ticket.number}
-                                </span>
+                                <div style={{ marginBottom: '0.3rem' }}>티켓 #{idx + 1}</div>
+                                <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'center' }}>
+                                    {(ticket.numbers || []).map((num, i) => (
+                                        <span key={i} style={{
+                                            background: '#10b981',
+                                            color: 'white',
+                                            padding: '0.3rem 0.6rem',
+                                            borderRadius: '50%',
+                                            fontWeight: 'bold',
+                                            fontSize: '0.9rem',
+                                            minWidth: '2rem',
+                                            textAlign: 'center'
+                                        }}>
+                                            {num?.toString ? num.toString() : num}
+                                        </span>
+                                    ))}
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -288,8 +353,24 @@ function App() {
             {lastWinner && lastWinner !== '0x0000000000000000000000000000000000000000' && (
                 <div className="winner-section">
                     <h3>🏆 지난 당첨 결과</h3>
-                    <p className="winner-highlight">당첨 번호: {lastWinningNumber}</p>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', margin: '1rem 0' }}>
+                        {lastWinningNumbers.map((num, i) => (
+                            <span key={i} className="winner-highlight" style={{
+                                background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+                                padding: '0.5rem 0.8rem',
+                                borderRadius: '50%',
+                                fontWeight: 'bold',
+                                fontSize: '1.1rem',
+                                minWidth: '2.5rem',
+                                textAlign: 'center',
+                                color: 'white'
+                            }}>
+                                {num}
+                            </span>
+                        ))}
+                    </div>
                     <p className="winner-highlight">당첨자: {lastWinner}</p>
+                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>일치 개수: {lastMatchCount}개</p>
                 </div>
             )}
 
@@ -305,10 +386,22 @@ function App() {
                                 borderRadius: '5px',
                                 fontSize: '0.85rem'
                             }}>
-                                <span>{ticket.player?.slice ? ticket.player.slice(0, 10) : ticket.player}...</span>
-                                <span style={{ float: 'right', color: '#a855f7', fontWeight: 'bold' }}>
-                                    번호: {ticket.number?.toString ? ticket.number.toString() : ticket.number}
-                                </span>
+                                <div>{ticket.player?.slice ? ticket.player.slice(0, 10) : ticket.player}...</div>
+                                <div style={{ display: 'flex', gap: '0.3rem', marginTop: '0.3rem' }}>
+                                    {(ticket.numbers || []).map((num, i) => (
+                                        <span key={i} style={{
+                                            background: '#a855f7',
+                                            color: 'white',
+                                            padding: '0.2rem 0.5rem',
+                                            borderRadius: '50%',
+                                            fontSize: '0.8rem',
+                                            minWidth: '1.5rem',
+                                            textAlign: 'center'
+                                        }}>
+                                            {num?.toString ? num.toString() : num}
+                                        </span>
+                                    ))}
+                                </div>
                             </div>
                         ))}
                     </div>
