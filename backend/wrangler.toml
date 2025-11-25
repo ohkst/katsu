@@ -1,0 +1,8 @@
+name = "katsu-backend"
+main = "src/worker.js"
+compatibility_date = "2023-10-30"
+
+[[d1_databases]]
+binding = "DB" # i.e. available in your Worker on env.DB
+database_name = "katsu-lottery-db"
+database_id = "YOUR_DATABASE_ID_HERE" # User needs to replace this
