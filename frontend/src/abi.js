@@ -5,7 +5,13 @@ export const abi = [
         "type": "constructor"
     },
     {
-        "inputs": [],
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_number",
+                "type": "uint256"
+            }
+        ],
         "name": "enter",
         "outputs": [],
         "stateMutability": "payable",
@@ -13,12 +19,63 @@ export const abi = [
     },
     {
         "inputs": [],
-        "name": "getPlayers",
+        "name": "getTicketCount",
         "outputs": [
             {
-                "internalType": "address[]",
+                "internalType": "uint256",
                 "name": "",
-                "type": "address[]"
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getTickets",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "address",
+                        "name": "player",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "number",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct Lottery.Ticket[]",
+                "name": "",
+                "type": "tuple[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "lastWinner",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "lastWinningNumber",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
             }
         ],
         "stateMutability": "view",
@@ -45,13 +102,24 @@ export const abi = [
         "type": "function"
     },
     {
-        "inputs": [],
-        "name": "lastWinner",
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "name": "tickets",
         "outputs": [
             {
                 "internalType": "address",
-                "name": "",
+                "name": "player",
                 "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "number",
+                "type": "uint256"
             }
         ],
         "stateMutability": "view",
