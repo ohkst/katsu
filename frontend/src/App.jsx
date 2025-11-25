@@ -16,6 +16,27 @@ function App() {
     const [isMockMode, setIsMockMode] = useState(false);
     const [lotteryNumbers, setLotteryNumbers] = useState(['', '', '', '', '', '']);
     const [myTickets, setMyTickets] = useState([]);
+    const [ethToKrw, setEthToKrw] = useState(4500000); // Default ~4.5M KRW
+
+    useEffect(() => {
+        // Fetch ETH to KRW exchange rate
+        const fetchExchangeRate = async () => {
+            try {
+                const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=krw');
+                const data = await response.json();
+                if (data.ethereum && data.ethereum.krw) {
+                    setEthToKrw(data.ethereum.krw);
+                }
+            } catch (error) {
+                console.error('Failed to fetch exchange rate:', error);
+            }
+        };
+
+        fetchExchangeRate();
+        const interval = setInterval(fetchExchangeRate, 60000); // Update every minute
+
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         const init = async () => {
@@ -25,11 +46,16 @@ function App() {
                     console.log("Contract not found, enabling Mock Mode");
                     setIsMockMode(true);
                     setManager('0x1234...abcd');
-                    setTickets([
-                        { player: '0xUser1...', numbers: [3, 7, 15, 23, 31, 42] },
-                        { player: '0xUser2...', numbers: [1, 5, 10, 20, 30, 40] }
-                    ]);
-                    setBalance('0.006');
+                    // Increased test mode prize pool
+                    const mockTickets = [];
+                    for (let i = 0; i < 15; i++) {
+                        mockTickets.push({
+                            player: `0xUser${i}...`,
+                            numbers: Array.from({ length: 6 }, () => Math.floor(Math.random() * 45) + 1)
+                        });
+                    }
+                    setTickets(mockTickets);
+                    setBalance('0.045'); // 15 tickets * 0.003 ETH
                     return;
                 }
 
@@ -239,6 +265,8 @@ function App() {
     };
 
     const totalPrize = tickets.length * 0.003;
+    const totalPrizeKrw = totalPrize * ethToKrw;
+    const entryFeeKrw = 0.003 * ethToKrw;
     const allNumbersFilled = lotteryNumbers.every(n => n !== '');
 
     return (
@@ -261,6 +289,9 @@ function App() {
                 <div className="stat-item">
                     <h3>총 상금</h3>
                     <p>{totalPrize.toFixed(3)} ETH</p>
+                    <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.2rem' }}>
+                        ≈ {totalPrizeKrw.toLocaleString('ko-KR')}원
+                    </p>
                 </div>
                 <div className="stat-item">
                     <h3>내 참여</h3>
@@ -270,9 +301,9 @@ function App() {
 
             <div className="card">
                 <h3>행운의 번호를 선택하세요!</h3>
-                <p>참가비: 0.003 ETH</p>
+                <p>참가비: 0.003 ETH <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>(≈ {entryFeeKrw.toLocaleString('ko-KR')}원)</span></p>
                 <p style={{ fontSize: '0.9rem', color: '#94a3b8', marginTop: '0.5rem', marginBottom: '1rem' }}>
-                    1부터 45 사이의 중복되지 않는 6개 번호
+                    1부터 45 사이의 중복되지 않는 6개 번호 | 여러 번 참여 가능
                 </p>
                 <div style={{
                     display: 'grid',
@@ -333,7 +364,7 @@ function App() {
                         ))}
                     </div>
                     <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#94a3b8' }}>
-                        총 투자: {(myTickets.length * 0.003).toFixed(3)} ETH
+                        총 투자: {(myTickets.length * 0.003).toFixed(3)} ETH (≈ {(myTickets.length * entryFeeKrw).toLocaleString('ko-KR')}원)
                     </p>
                 </div>
             )}
