@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare
+name: Deploy to Cloudflare Pages
 
 on:
   push:
@@ -6,39 +6,32 @@ on:
       - main
 
 jobs:
-  deploy-frontend:
+  deploy:
     runs-on: ubuntu-latest
-    name: Deploy Frontend
+    permissions:
+      contents: read
+      deployments: write
+    name: Deploy to Cloudflare Pages
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Node
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-      
+
       - name: Install Dependencies
         run: cd frontend && npm install
-        
+
       - name: Build
         run: cd frontend && npm run build
-        
-      - name: Deploy to Cloudflare Pages
+
+      - name: Publish to Cloudflare Pages
         uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: katsu-lottery
+          projectName: lotto-dapp
           directory: frontend/dist
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-
-  deploy-backend:
-    runs-on: ubuntu-latest
-    name: Deploy Backend
-    steps:
-      - uses: actions/checkout@v3
-      - name: Deploy Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: backend
